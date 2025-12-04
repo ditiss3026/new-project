@@ -5,3 +5,5 @@ gm boss
 which question you want 
 
 boss 2,3,5 do mereko
+
+ok 5min 
