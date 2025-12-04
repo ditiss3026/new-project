@@ -14,3 +14,4 @@ sry 2,4,5 do me 1,3 krta hu
 
 ok
 que ale  n whatsapp la
+yes
