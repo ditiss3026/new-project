@@ -1,0 +1,281 @@
+
+
+====================================================================
+OPENVPN SERVER SETUP
+
+===========================
+
+LAB REQUIREMENTS
+===========================
+
+You need 3 VMs:
+
+OpenVPN Server
+
+2 Network Cards
+• NAT
+• Host-Only
+
+Hostname: openvpnserver
+
+VPN Client (Remote Client)
+
+1 Network Card
+• NAT
+
+Hostname: client1
+
+LAN Machine
+
+1 Network Card
+• Host-Only
+
+Create user admin on all machines and give sudo access.
+Run on all VMs:
+sudo yum update -y
+
+Set correct timezone everywhere.
+
+===========================
+2) DISABLE SELINUX
+
+Edit config:
+sudo vi /etc/selinux/config
+Set:
+SELINUX=disabled
+
+Apply temporary permissive mode:
+sudo setenforce 0
+
+===========================
+3) ENABLE IP FORWARDING
+
+Temporary:
+echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+
+Permanent:
+sudo vi /etc/sysctl.conf
+Add:
+net.ipv4.ip_forward = 1
+
+===========================
+4) INSTALL REQUIRED PACKAGES
+
+sudo dnf install epel-release -y
+sudo dnf install openvpn wget tar -y
+
+Go to OpenVPN directory:
+cd /etc/openvpn
+
+Download EasyRSA:
+sudo wget https://github.com/OpenVPN/easy-rsa/releases/download/v3.0.6/EasyRSA-unix-v3.0.6.tgz
+
+Extract:
+sudo tar xvzf EasyRSA-unix-v3.0.6.tgz
+
+Rename:
+sudo mv EasyRSA-v3.0.6 easy-rsa
+
+Enter folder:
+cd easy-rsa
+
+===========================
+5) CREATE vars FILE
+
+vi vars
+
+Paste:
+set_var EASYRSA "$PWD"
+set_var EASYRSA_PKI "$EASYRSA/pki"
+set_var EASYRSA_DN "cn_only"
+set_var EASYRSA_REQ_COUNTRY "IN"
+set_var EASYRSA_REQ_PROVINCE "Maharastra"
+set_var EASYRSA_REQ_CITY "Pune"
+set_var EASYRSA_REQ_ORG "Demo Labs"
+set_var EASYRSA_REQ_EMAIL ""
+set_var EASYRSA_REQ_OU "Demo Labs CA"
+set_var EASYRSA_KEY_SIZE 2048
+set_var EASYRSA_ALGO rsa
+set_var EASYRSA_CA_EXPIRE 7500
+set_var EASYRSA_CERT_EXPIRE 365
+set_var EASYRSA_NS_SUPPORT "no"
+set_var EASYRSA_NS_COMMENT "Demo Labs"
+set_var EASYRSA_EXT_DIR "$EASYRSA/x509-types"
+set_var EASYRSA_SSL_CONF "$EASYRSA/openssl-easyrsa.cnf"
+set_var EASYRSA_DIGEST "sha256"
+
+===========================
+6) INITIALIZE PKI & BUILD CA
+
+Init PKI:
+sudo ./easyrsa init-pki
+
+Build CA:
+sudo ./easyrsa build-ca
+
+Enter password
+Common Name (example): demo-ca
+
+===========================
+7) GENERATE SERVER CERTIFICATES
+
+Request:
+sudo ./easyrsa gen-req openvpnserver nopass
+Press Enter at hostname.
+
+Sign:
+sudo ./easyrsa sign-req server openvpnserver
+Choose: yes
+Enter CA password.
+
+Generate DH:
+sudo ./easyrsa gen-dh
+
+Copy certs to server directory:
+sudo cp pki/ca.crt /etc/openvpn/server
+sudo cp pki/dh.pem /etc/openvpn/server
+sudo cp pki/private/openvpnserver.key /etc/openvpn/server
+sudo cp pki/issued/openvpnserver.crt /etc/openvpn/server
+
+===========================
+8) GENERATE CLIENT CERTIFICATES
+
+Request:
+sudo ./easyrsa gen-req client1 nopass
+Press Enter.
+
+Sign:
+sudo ./easyrsa sign-req client client1
+
+Copy client certs:
+sudo cp pki/ca.crt /etc/openvpn/client
+sudo cp pki/issued/client1.crt /etc/openvpn/client
+sudo cp pki/private/client1.key /etc/openvpn/client
+
+===========================
+9) CREATE server.conf FILE
+
+sudo vi /etc/openvpn/server/server.conf
+
+Paste:
+
+port 1194
+proto udp
+dev tun
+
+ca /etc/openvpn/server/ca.crt
+cert /etc/openvpn/server/openvpnserver.crt
+key /etc/openvpn/server/openvpnserver.key
+dh /etc/openvpn/server/dh.pem
+
+server 10.8.0.0 255.255.255.0
+
+push "route 192.168.237.0 255.255.255.0"
+
+duplicate-cn
+cipher AES-256-CBC
+tls-version-min 1.2
+auth SHA512
+auth-nocache
+
+keepalive 20 60
+persist-key
+persist-tun
+compress lz4
+
+daemon
+user nobody
+group nobody
+
+log-append /var/log/openvpn.log
+verb 3
+
+===========================
+10) START OPENVPN SERVER
+
+sudo systemctl start openvpn-server@server
+sudo systemctl status openvpn-server@server
+sudo systemctl enable openvpn-server@server
+
+===========================
+11) CREATE CLIENT .ovpn FILE
+
+sudo vi /etc/openvpn/client/client1.ovpn
+
+Paste:
+
+client
+dev tun
+proto udp
+remote vpn-server-ip 1194
+
+ca ca.crt
+cert client1.crt
+key client1.key
+
+cipher AES-256-CBC
+auth SHA512
+auth-nocache
+
+tls-version-min 1.2
+compress lz4
+
+nobind
+persist-key
+persist-tun
+
+verb 3
+
+===========================
+12) FIREWALL RULES
+
+sudo firewall-cmd --permanent --add-service=openvpn
+sudo firewall-cmd --permanent --zone=trusted --add-service=openvpn
+sudo firewall-cmd --permanent --zone=trusted --change-interface=tun0
+
+sudo firewall-cmd --add-masquerade
+sudo firewall-cmd --permanent --add-masquerade
+
+sudo firewall-cmd --permanent --direct --passthrough ipv4 -t nat -A POSTROUTING -s 10.8.0.0/24 -o ens160 -j MASQUERADE
+
+sudo firewall-cmd --reload
+
+===========================
+13) COPY CLIENT FILES TO CLIENT MACHINE
+
+sudo scp /etc/openvpn/client/. admin@vpn-client-ip:/home/admin
+
+===========================
+14) ON CLIENT MACHINE
+
+Install:
+sudo dnf install epel-release -y
+sudo dnf install openvpn -y
+
+Disable SELinux:
+sudo setenforce 0
+
+Copy files:
+sudo cp /home/admin/ca.crt /etc/openvpn/client
+sudo cp /home/admin/client1.crt /etc/openvpn/client
+sudo cp /home/admin/client1.key /etc/openvpn/client
+
+Edit .ovpn and set server IP.
+
+===========================
+15) CONNECT TO VPN
+
+Start VPN:
+sudo openvpn --config client1.ovpn
+
+Open another terminal:
+ip a
+
+Test:
+ping <LAN-IP>
+ssh <LAN-IP>
+
+Disconnect:
+Ctrl + C
+
+====================================================================
