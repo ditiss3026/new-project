@@ -39,3 +39,6 @@ yes 3 krto me 4 de lvkr
 
 <br>
 at the end remove all files
+
+
+ok boss thank uh
