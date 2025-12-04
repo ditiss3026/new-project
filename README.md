@@ -2,4 +2,4 @@
 Hiiii this is new readme file
 gm boss
 
-with question number tak ok
+which question you want 
