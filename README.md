@@ -1,4 +1,9 @@
 
+use this docs 
+https://docs.google.com/document/d/1-EpnIRILvVpBTihk9TLd_KGra4e1cLBadwYPoPzfiNI/edit?usp=drivesdk
+
+<br>
+
 Perform Krych Question ch nhi ahe
 <br>
 Tumhla tya end la krv lagel <br>
