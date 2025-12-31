@@ -1,0 +1,67 @@
+Q1) Step 1: Blacklisted IP list
+(They already gave it. You must hard-code or store it clearly.)
+1.1.1.1
+98.89.89.89
+2.2.2.2
+
+
+Step 2: Script to audit current IP connections
+Script name
+audit_ip_connections.sh
+
+Script content (WRITE THIS ON PAPER)
+#!/bin/bash
+
+# Blacklisted IPs
+BLACKLIST="1.1.1.1 98.89.89.89 2.2.2.2"
+
+# Get current active IP connections
+ACTIVE_IPS=$(netstat -ntu | awk '{print $5}' | cut -d: -f1 | sort | uniq)
+
+# Check for matches
+for ip in $ACTIVE_IPS
+do
+    for bad_ip in $BLACKLIST
+    do
+        if [ "$ip" = "$bad_ip" ]; then
+            echo "Blacklisted IP detected: $ip"
+        fi
+    done
+done
+
+Why this is correct (in examiner’s eyes)
+netstat -ntu → shows current TCP/UDP connections
+
+
+awk + cut → extracts IP addresses
+
+
+Loop compares active IPs with blacklist
+
+
+Clear logic, zero confusion
+
+
+
+Step 3: Make the script executable (mention in answer)
+chmod +x audit_ip_connections.sh
+
+
+Step 4: Create a cron job to run hourly
+Edit crontab
+crontab -e
+
+Add this line
+0 * * * * /path/to/audit_ip_connections.sh
+
+Meaning (write ONE line explanation)
+Runs the script at minute 0 of every hour
+
+
+
+If you want EXTRA safety marks (optional line)
+You can say:
+Output can be redirected to a log file.
+Example:
+0 * * * * /path/to/audit_ip_connections.sh >> /var/log/ip_audit.log
+
